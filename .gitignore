@@ -1,0 +1,54 @@
+# ============================================
+# SECRETS - Never commit these!
+# ============================================
+.env
+*.env.local
+*.env.*.local
+
+# ============================================
+# USER DATA - All persistent data
+# ============================================
+data/
+
+# ============================================
+# SYSTEM FILES
+# ============================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.log
+
+# ============================================
+# DOCKER
+# ============================================
+# Don't ignore Dockerfiles, but ignore build artifacts
+*.tar
+docker-compose.override.yml
+
+# ============================================
+# BACKUP ARTIFACTS
+# ============================================
+backups/
+*.backup
+*.bak
+*.tar.gz
+*.zip
+
+# ============================================
+# TEMPORARY FILES
+# ============================================
+tmp/
+temp/
+*.tmp

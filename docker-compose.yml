@@ -1,0 +1,198 @@
+###############################################################################
+# SECOND BRAIN - Unified Docker Compose
+# 
+# All services for the self-hosted AI personal assistant:
+# - n8n (automation hub)
+# - SimpleX Chat CLI (encrypted messaging)
+# - SimpleX Bridge (SimpleX → n8n connector)
+# - Nextcloud (calendar/CalDAV)
+# - Obsidian API (notes management)
+#
+# Usage:
+#   cp .env.example .env
+#   # Edit .env with your secrets
+#   ./scripts/setup.sh
+#   docker compose up -d
+#
+###############################################################################
+
+services:
+  # ============================================
+  # N8N - Automation Hub
+  # ============================================
+  n8n:
+    build: ./n8n-python
+    image: n8n-python:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    env_file: .env
+    environment:
+      - TZ=${TZ:-Europe/London}
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_COMMUNITY_PACKAGES_ENABLED=true
+      - NODE_PATH=/usr/local/lib/node_modules
+      - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:?N8N_BASIC_AUTH_PASSWORD required}
+      - N8N_DISABLE_EXECUTE_COMMAND=false
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      # Uncomment if using reverse proxy:
+      # - WEBHOOK_URL=${WEBHOOK_URL}
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - second-brain-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ============================================
+  # SIMPLEX CHAT CLI - Encrypted Messaging
+  # ============================================
+  simplex-chat-cli:
+    build: ./simplex
+    container_name: simplex-chat-cli
+    restart: unless-stopped
+    ports:
+      - "${SIMPLEX_PORT:-5225}:5225"
+    environment:
+      - SIMPLEX_LOG_LEVEL=${SIMPLEX_LOG_LEVEL:-warn}
+      - SIMPLEX_PORT=5225
+      - SIMPLEX_BOT_NAME=${SIMPLEX_BOT_NAME:-second-brain}
+      - SIMPLEX_PROFILE_DIR=/home/simplex/.simplex
+      - TZ=${TZ:-Europe/London}
+    volumes:
+      - ./data/simplex:/home/simplex/.simplex
+    networks:
+      - second-brain-net
+
+  # ============================================
+  # SIMPLEX BRIDGE - SimpleX → n8n Connector
+  # ============================================
+  simplex-bridge:
+    image: python:3.11-slim
+    container_name: simplex-bridge
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./scripts:/app/scripts
+      - ./data/simplex-bridge:/app/scripts/state
+    command: >
+      sh -c "pip install --quiet websocket-client && python /app/scripts/bridge.py"
+    environment:
+      - SIMPLEX_WS_URL=ws://simplex-chat-cli:5225
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/simplex-in
+      - SIMPLEX_STATE_FILE=/app/scripts/state/simplex_last_seen.json
+      - SIMPLEX_POLL_SECONDS=${SIMPLEX_POLL_SECONDS:-2}
+      - SIMPLEX_WS_TIMEOUT=${SIMPLEX_WS_TIMEOUT:-10}
+      - SIMPLEX_WEBHOOK_RETRIES=${SIMPLEX_WEBHOOK_RETRIES:-3}
+      - SIMPLEX_WEBHOOK_BACKOFF=${SIMPLEX_WEBHOOK_BACKOFF:-2}
+      - SIMPLEX_HEALTH_CHECK=${SIMPLEX_HEALTH_CHECK:-1}
+      - SIMPLEX_DEBUG_WS_EVENTS=${SIMPLEX_DEBUG_WS_EVENTS:-0}
+      - TZ=${TZ:-Europe/London}
+    depends_on:
+      n8n:
+        condition: service_healthy
+      simplex-chat-cli:
+        condition: service_started
+    networks:
+      - second-brain-net
+
+  # ============================================
+  # NEXTCLOUD - Calendar (CalDAV)
+  # ============================================
+  nextcloud:
+    image: nextcloud:29-apache
+    container_name: nextcloud
+    restart: unless-stopped
+    ports:
+      - "${NEXTCLOUD_PORT:-8088}:80"
+    environment:
+      - MYSQL_HOST=nextcloud-db
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${NEXTCLOUD_DB_PASSWORD:?NEXTCLOUD_DB_PASSWORD required}
+      - TZ=${TZ:-Europe/London}
+    volumes:
+      - ./data/nextcloud/html:/var/www/html
+      - ./data/nextcloud/data:/var/www/html/data
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+    networks:
+      - second-brain-net
+
+  nextcloud-db:
+    image: mariadb:11
+    container_name: nextcloud-db
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    environment:
+      - MYSQL_ROOT_PASSWORD=${NEXTCLOUD_DB_ROOT_PASSWORD:?NEXTCLOUD_DB_ROOT_PASSWORD required}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${NEXTCLOUD_DB_PASSWORD:?NEXTCLOUD_DB_PASSWORD required}
+      - TZ=${TZ:-Europe/London}
+    volumes:
+      - ./data/nextcloud-db:/var/lib/mysql
+    networks:
+      - second-brain-net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  nextcloud-cron:
+    image: nextcloud:29-apache
+    container_name: nextcloud-cron
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    volumes:
+      - ./data/nextcloud/html:/var/www/html
+      - ./data/nextcloud/data:/var/www/html/data
+    depends_on:
+      - nextcloud
+    networks:
+      - second-brain-net
+
+  # ============================================
+  # OBSIDIAN API - Notes Management
+  # ============================================
+  obsidian-api:
+    build: ./obsidian-api
+    container_name: obsidian-api
+    restart: unless-stopped
+    ports:
+      - "${OBSIDIAN_API_PORT:-8765}:8000"
+    environment:
+      - VAULT_PATH=/vault
+      - DAILY_NOTES_FOLDER=Daily Notes
+      - INBOX_FOLDER=Inbox
+      - TZ=${TZ:-Europe/London}
+    volumes:
+      - ./data/vault:/vault
+    networks:
+      - second-brain-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ============================================
+# NETWORK
+# ============================================
+networks:
+  second-brain-net:
+    name: second-brain-net
+    driver: bridge
