@@ -16,7 +16,7 @@ This project is inspired by [Nate's Second Brain system](https://natesnewsletter
   5. Zapier replies in Slack confirming what it did
   6. Daily/weekly digests surface what matters
 
-**This project adapts that concept for privacy-conscious self-hosters:**
+**This project adapts that concept for privacy-conscious self-hosters, and adds calendar management:**
 
 | Nate's Stack | This Project | Benefit |
 |--------------|--------------|---------|
@@ -24,8 +24,9 @@ This project is inspired by [Nate's Second Brain system](https://natesnewsletter
 | Zapier | n8n | Self-hosted, no cloud dependency |
 | Notion | Obsidian API | Local markdown files, full ownership |
 | Cloud AI | Your choice | Use local LLMs or cloud APIs |
+| *(not included)* | Nextcloud Calendar | Full calendar management via natural language |
 
-Same powerful workflow, but everything runs on your own hardware.
+Same powerful workflow, plus calendar integration—everything runs on your own hardware.
 
 ---
 
