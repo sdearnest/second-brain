@@ -139,8 +139,15 @@ Services:
    - Nextcloud will set up the database
    - You may see a loading screen
 
-4. **Skip recommended apps** (optional)
-   - Click "Cancel" or install if desired
+4. **Install recommended apps OR install Calendar manually:**
+   
+   **Option A:** Click "Install recommended apps" - this includes Calendar
+   
+   **Option B:** Skip recommended apps, then install Calendar manually:
+   - Click your profile icon (top right)
+   - Click "Apps"
+   - Go to "Office & text" category
+   - Find "Calendar" and click "Install"
 
 ### Step 2: Create Nextcloud App Password
 
