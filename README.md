@@ -222,6 +222,7 @@ cloudflared tunnel --url http://localhost:5678
 
 - [Setup Guide](SETUP_GUIDE.md) - Complete installation instructions
 - [Nate's Original Article](https://natesnewsletter.substack.com/p/grab-the-system-that-closes-open) - The inspiration for this project
+- [SimpleX Bridge](SIMPLEX_BRIDGE.md) - Technical details on the messaging bridge
 
 ---
 
