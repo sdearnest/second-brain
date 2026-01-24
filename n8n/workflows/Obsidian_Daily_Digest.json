@@ -1,0 +1,196 @@
+{
+  "name": "Obsidian_Daily_Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "c032ef6c-8a61-499f-8620-1e2367dae946",
+      "name": "Daily_8AM_Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://obsidian-api:8000/recent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "30afebd8-4513-475f-9b7a-e7393c01e0d6",
+      "name": "Get_Recent_Notes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://obsidian-api:8000/tasks",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "completed",
+              "value": "false"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1b4cd0be-43c0-45bd-b6f7-809a44a228f7",
+      "name": "Get_Open_Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine data from both sources\nconst recentNotes = $('Get_Recent_Notes').first().json.notes || [];\nconst openTasks = $('Get_Open_Tasks').first().json.tasks || [];\n\n// Filter notes from last 24 hours\nconst oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);\nconst recentFiltered = recentNotes.filter(n => new Date(n.modified) > oneDayAgo);\n\nreturn {\n  recent_notes: recentFiltered,\n  open_tasks: openTasks,\n  stats: {\n    notes_today: recentFiltered.length,\n    total_open_tasks: openTasks.length\n  }\n};"
+      },
+      "id": "adfd2a8e-4ecf-4b2b-9b2f-caac6d8eb27a",
+      "name": "Combine_Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "temperature": 0.5
+        }
+      },
+      "id": "29c8a9bb-0396-4314-a16f-f1330510adc7",
+      "name": "Generate_Digest_with_AI",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        448,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = $input.first().json;\nconst digest = aiResponse.message?.content || aiResponse.content || 'No digest generated';\nconst stats = $('Combine_Data').first().json.stats;\n\nconst header = `☀️ **Good Morning! Daily Digest**\\n` +\n  `📅 ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}\\n` +\n  `━━━━━━━━━━━━━━━━━━━━\\n\\n`;\n\nreturn {\n  reply: header + digest,\n  stats: stats\n};"
+      },
+      "id": "af1cbd7b-7e5a-460f-a2e4-8ecfcd863004",
+      "name": "Format_Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SIMPLEX_REPLY_URL || 'http://simplex-bridge:8080/send' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": \"{{ $json.reply }}\"\n}",
+        "options": {}
+      },
+      "id": "286569ae-3ef7-4515-9bc8-18ecaa76d117",
+      "name": "Send_to_SimpleX",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        112
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily_8AM_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get_Recent_Notes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get_Open_Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Recent_Notes": {
+      "main": [
+        [
+          {
+            "node": "Combine_Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Open_Tasks": {
+      "main": [
+        [
+          {
+            "node": "Combine_Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format_Digest": {
+      "main": [
+        [
+          {
+            "node": "Send_to_SimpleX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "fbe70aa9-38aa-4f26-81a6-801e373904b6",
+  "meta": {
+    "instanceId": "6dd52e1127a8323eea11f39646bff42e584259ad6d872e077809aa55e4ff2415"
+  },
+  "id": "IRqaTnEcmDzJeTZ9eMWOw",
+  "tags": []
+}

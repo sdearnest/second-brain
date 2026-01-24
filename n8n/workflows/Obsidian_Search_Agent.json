@@ -1,0 +1,323 @@
+{
+  "name": "Obsidian_Search_Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a7856034-3924-42b0-b5ff-821f895191c6",
+      "name": "When Called By Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst content = input.output?.[0]?.content?.[0]?.text || input.text || '{}';\n\nlet parsed;\ntry {\n  const jsonStr = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(jsonStr);\n} catch (e) {\n  parsed = {\n    query: $('When Called By Another Workflow').first().json.message,\n    database: 'all',\n    date_filter: null,\n    intent: 'find'\n  };\n}\n\nreturn {\n  query: parsed.query || '',\n  database: parsed.database || 'all',\n  date_filter: parsed.date_filter || null,\n  intent: parsed.intent || 'find',\n  original_message: $('When Called By Another Workflow').first().json.message\n};"
+      },
+      "id": "325b2a2b-484f-4420-91ec-4e75fb67a27d",
+      "name": "Parse_Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "94d1f393-de84-458b-89e1-3be2ae7b796c"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "9d130b67-0c8b-4b32-b50e-33aa66a6777b",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEquals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3ff4e326-0803-406a-9454-15c32b8e0e0f",
+      "name": "Route_Search_Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -80,
+        -16
+      ],
+      "outputs": [
+        "List",
+        "Search"
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://obsidian-api:8000/db/{{ $json.database || 'projects' }}",
+        "options": {}
+      },
+      "id": "649dd2b9-c2bd-497d-9187-2279f824831f",
+      "name": "List_Database",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        160,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://obsidian-api:8000/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "limit",
+              "value": "={{ $json.intent === 'list' ? 50 : 100 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5cd7da2-3daf-4f36-9ba4-1555207cd48e",
+      "name": "Search_Vault",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        176,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst parsed = $('Parse_Query').first().json;\nconst db = parsed.database || 'all';\n\nconst dbEmojis = {\n  'people': '👤',\n  'projects': '📊',\n  'ideas': '💡',\n  'admin': '✅',\n  'inbox_log': '📥'\n};\n\nconst dbTitles = {\n  'people': 'People',\n  'projects': 'Projects',\n  'ideas': 'Ideas',\n  'admin': 'Tasks & Admin',\n  'inbox_log': 'Inbox Log'\n};\n\n// Handle different response formats from the API\nconst items = result.items || result.people || result.projects || result.ideas || result.admin || result.tasks || result.logs || result || [];\n\n// If items is not an array, try to extract from result\nconst itemList = Array.isArray(items) ? items : [];\n\nif (itemList.length === 0) {\n  return { reply: `📭 No ${dbTitles[db] || db} found.` };\n}\n\nconst emoji = dbEmojis[db] || '📋';\nconst title = dbTitles[db] || db.charAt(0).toUpperCase() + db.slice(1);\n\nlet reply = `${emoji} **${title}** (${itemList.length})\\n\\n`;\n\nitemList.slice(0, 10).forEach((item, i) => {\n  const itemEmoji = dbEmojis[item.type || db] || '📝';\n  reply += `${i + 1}. ${itemEmoji} **${item.name}**`;\n  \n  // Status for projects\n  if (item.status) {\n    const statusEmoji = {\n      'Active': '🟢',\n      'Waiting': '🟡',\n      'Blocked': '🔴',\n      'Someday': '⚪'\n    };\n    reply += ` ${statusEmoji[item.status] || ''} ${item.status}`;\n  }\n  \n  // Due date for admin/tasks\n  if (item.due_date) reply += ` 📅 ${item.due_date}`;\n  \n  reply += '\\n';\n  \n  // Parse context field if present (may contain markdown)\n  if (item.context) {\n    const ctx = item.context.replace(/\\\\n/g, '\\n');\n    \n    // For people - extract context section\n    const contextMatch = ctx.match(/## Context\\n([^\\n#]+)/);\n    if (contextMatch && contextMatch[1].trim() !== '...') {\n      reply += `   📋 ${contextMatch[1].trim()}\\n`;\n    } else if (!ctx.includes('##') && ctx.trim() !== '...') {\n      // Plain context string\n      reply += `   📋 ${ctx.trim()}\\n`;\n    }\n    \n    // Extract Follow-ups\n    const followMatch = ctx.match(/## Follow-ups\\n([^\\n#]+)/);\n    if (followMatch && followMatch[1].trim() !== '...') {\n      reply += `   📌 ${followMatch[1].trim()}\\n`;\n    }\n  }\n  \n  // Direct fields (if API returns parsed data)\n  if (item.follow_ups && !item.context) {\n    reply += `   📌 ${item.follow_ups}\\n`;\n  }\n  \n  // One-liner for ideas\n  if (item.one_liner) {\n    reply += `   💭 ${item.one_liner}\\n`;\n  }\n  \n  // Next action for projects\n  if (item.next_action) {\n    reply += `   ▶️ ${item.next_action}\\n`;\n  }\n  \n  // Tags\n  if (item.tags && item.tags.length > 0) {\n    reply += `   🏷️ ${item.tags.join(', ')}\\n`;\n  }\n  \n  reply += '\\n';\n});\n\nif (itemList.length > 10) {\n  reply += `_...and ${itemList.length - 10} more_`;\n}\n\nreturn { reply: reply.trim() };"
+      },
+      "id": "db528fb4-1e5b-441c-b9b8-c08c8e222ae3",
+      "name": "Format_List_Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst parsed = $('Parse_Query').first().json;\n\nif (!result.results || result.results.length === 0) {\n  return { reply: `🔍 No results found for \"${parsed.query}\"` };\n}\n\nconst dbEmojis = {\n  'people': '👤',\n  'projects': '📊',\n  'ideas': '💡',\n  'admin': '✅',\n  'inbox_log': '📥'\n};\n\n// Separate main entries from inbox logs\nconst mainResults = result.results.filter(r => r.database !== 'inbox_log');\nconst inboxResults = result.results\n  .filter(r => r.database === 'inbox_log')\n  .sort((a, b) => b.id.localeCompare(a.id)); // Newest first\n\nlet reply = `🔍 Results for \"${parsed.query}\"\\n\\n`;\n\n// Format main entries (people, projects, etc.)\nmainResults.forEach(r => {\n  const emoji = dbEmojis[r.database] || '📝';\n  reply += `${emoji} **${r.name}** (${r.database})\\n`;\n  \n  if (r.context) {\n    const ctx = r.context.replace(/\\\\n/g, '\\n');\n    \n    const contextMatch = ctx.match(/## Context\\n([^\\n#]+)/);\n    if (contextMatch && contextMatch[1].trim() !== '...') {\n      reply += `📋 ${contextMatch[1].trim()}\\n`;\n    }\n    \n    const followMatch = ctx.match(/## Follow-ups\\n([^\\n#]+)/);\n    if (followMatch && followMatch[1].trim() !== '...') {\n      reply += `📌 ${followMatch[1].trim()}\\n`;\n    }\n  }\n  \n  reply += '\\n';\n});\n\n// Show ALL inbox entries for this query\nif (inboxResults.length > 0) {\n  reply += `📥 **All captures** (${inboxResults.length}):\\n`;\n  \n  inboxResults.forEach(r => {\n    const originalMatch = r.context.match(/\\*\\*Original:\\*\\*\\s*([^*\\n]+)/);\n    if (originalMatch) {\n      let text = originalMatch[1].trim();\n      // Clean up redundant prefixes\n      text = text.replace(/^(add to \\w+:|^\\w+:)\\s*/i, '');\n      \n      // Extract date from ID (format: 20260119093945)\n      const dateStr = r.id.substring(0, 8);\n      const timeStr = r.id.substring(8, 12);\n      const formattedDate = `${dateStr.substring(6, 8)}/${dateStr.substring(4, 6)}`;\n      const formattedTime = `${timeStr.substring(0, 2)}:${timeStr.substring(2, 4)}`;\n      \n      reply += `• ${text} _(${formattedDate} ${formattedTime})_\\n`;\n    }\n  });\n}\n\nreturn { reply: reply.trim() };"
+      },
+      "id": "5409e4eb-0747-4733-972a-83b5e46b06aa",
+      "name": "Format_Search_Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "c5a65c41-5aee-45c1-860a-a12fbbb8d6fb",
+      "name": "Prepare_Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        592,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.2",
+          "mode": "list",
+          "cachedResultName": "GPT-5.2"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You are a search query parser for a personal knowledge management system with 5 databases:\n- people: Information about contacts (colleagues, friends, family)\n- projects: Multi-step goals and initiatives\n- ideas: Standalone insights and creative thoughts\n- admin: Tasks, errands, to-dos with deadlines\n- inbox_log: Unprocessed captures awaiting review\n\n## YOUR JOB:\nParse the user's natural language search request and extract:\n1. The core search terms (keywords to match)\n2. Optional database filter (if they specify a category)\n3. Optional date filter (if they mention a time range)\n\n## OUTPUT FORMAT:\nReturn ONLY valid JSON:\n{\n  \"query\": \"core search keywords\",\n  \"database\": \"people|projects|ideas|admin|inbox_log|all\",\n  \"date_filter\": \"recent|today|this_week|this_month|null\",\n  \"intent\": \"find|list|summarize\"\n}\n\n## EXAMPLES:\n\nInput: \"what did I write about machine learning?\"\nOutput: {\"query\": \"machine learning\", \"database\": \"all\", \"date_filter\": null, \"intent\": \"find\"}\n\nInput: \"show me my projects\"\nOutput: {\"query\": \"\", \"database\": \"projects\", \"date_filter\": null, \"intent\": \"list\"}\n\nInput: \"who mentioned hiking?\"\nOutput: {\"query\": \"hiking\", \"database\": \"people\", \"date_filter\": null, \"intent\": \"find\"}\n\nInput: \"what tasks are due this week?\"\nOutput: {\"query\": \"\", \"database\": \"admin\", \"date_filter\": \"this_week\", \"intent\": \"list\"}\n\nInput: \"recent ideas about productivity\"\nOutput: {\"query\": \"productivity\", \"database\": \"ideas\", \"date_filter\": \"recent\", \"intent\": \"find\"}\n\nInput: \"find notes about Sarah\"\nOutput: {\"query\": \"Sarah\", \"database\": \"all\", \"date_filter\": null, \"intent\": \"find\"}\n\n## RULES:\n- Default database to \"all\" unless user specifies a category\n- Extract only essential keywords, remove filler words\n- \"recent\" means last 7 days, \"this_week\" is current week\n- If user says \"show all\" or \"list\", set intent to \"list\""
+            },
+            {
+              "content": "={{ $json.message }}\n"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -656,
+        0
+      ],
+      "id": "ab76cc82-ec8b-46e3-beff-dbe022448b11",
+      "name": "Extract_Search_Query",
+      "credentials": {
+        "openAiApi": {
+          "id": "tid0jWJO9PFqH8sU",
+          "name": "OpenAi account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Parse_Query": {
+      "main": [
+        [
+          {
+            "node": "Route_Search_Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route_Search_Type": {
+      "main": [
+        [
+          {
+            "node": "List_Database",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search_Vault",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List_Database": {
+      "main": [
+        [
+          {
+            "node": "Format_List_Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search_Vault": {
+      "main": [
+        [
+          {
+            "node": "Format_Search_Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format_List_Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare_Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format_Search_Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare_Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Called By Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Extract_Search_Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract_Search_Query": {
+      "main": [
+        [
+          {
+            "node": "Parse_Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "9d1ea814-2cd2-4ebd-9ae7-18af6695e14c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6dd52e1127a8323eea11f39646bff42e584259ad6d872e077809aa55e4ff2415"
+  },
+  "id": "oiKgqQn8cjaWyKTIUchDi",
+  "tags": []
+}

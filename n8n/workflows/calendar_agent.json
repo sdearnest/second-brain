@@ -1,0 +1,207 @@
+{
+  "name": "calendar_agent",
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.1-chat-latest",
+          "mode": "list",
+          "cachedResultName": "gpt-5.1-chat-latest"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        112,
+        16
+      ],
+      "id": "8fcd2d1f-6bd9-43f5-a967-54716d5133d0",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "tid0jWJO9PFqH8sU",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'http://nextcloud-nextcloud-1/remote.php/dav/calendars/cypherdoc/work/' + encodeURIComponent($json.uid) + '.ics' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "text/calendar; charset=utf-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/calendar; charset=utf-8",
+        "body": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        608,
+        -208
+      ],
+      "id": "96d3fb9a-cdd7-4d90-aaa5-e4f6e71b32dc",
+      "name": "CalDAV_PUT",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "2PJySY1nSlqMkMxp",
+          "name": "nextcloud_local"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=JSON:\n{{ JSON.stringify($json) }}\n",
+        "options": {
+          "systemMessage": "=You are an automation agent that generates RFC 5545 iCalendar (ICS) text.\n\nOUTPUT RULES (ABSOLUTE)\n\nOutput ONLY raw ICS text.\n\nNo markdown. No explanations.\n\nOutput must start with:\n\nBEGIN:VCALENDAR\n\n\nOutput must end with:\n\nEND:VCALENDAR\n\n\nInclude one or more VEVENT blocks (one per event).\n\nNever output empty properties.\n\nUse real line breaks between ICS lines.\n\nDo NOT output literal \\n except inside DESCRIPTION values.\n\nCALENDAR WRAPPER (ALWAYS)\nBEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//n8n AI//Rota2Cal//EN\nCALSCALE:GREGORIAN\n...VEVENTS...\nEND:VCALENDAR\n\nEXECUTION MODES (CRITICAL)\nMODE 1 — STRUCTURED EVENT MODE (preferred)\n\nIf an event object is present in the input:\n\nCreate exactly ONE VEVENT\n\nDo NOT infer or split further events\n\nDo NOT use free-text inference\n\nUse the following mapping:\n\nUID\n\nUse:\n\nevent.row_id@rota2cal\n\n\nIf row_id is missing, fall back to deterministic UID rules below\n\nDTSTART / DTEND\n\nUse event.start / event.end if provided\n\nIf times are missing:\n\nCreate an all-day event\n\nDTSTART = event.date at 00:00\n\nDTEND = next day at 00:00\n\nSUMMARY\n\nUse event.summary\n\nDESCRIPTION\n\nUse event.description\n\nAppend any extra contextual details if available\n\nLOCATION\n\nUse event.location if provided\n\nElse use default_location if provided\n\nCATEGORIES\n\nUse event.categories if provided\n\nMODE 2 — MANUAL / FREE-TEXT MODE\n\nIf no event object exists:\n\nUse request (text) and today to infer one or more events\n\nApply rota-aware inference rules below\n\nMultiple VEVENTs may be produced\n\nCRITICAL: You MUST always produce at least one VEVENT if the user is requesting to add an event. Never output an empty calendar wrapper.\n\nEVENT REQUIREMENTS (per VEVENT)\nRequired\n\nUID\n\nDTSTAMP\n\nDTSTART\n\nDTEND\n\nSUMMARY\n\nDESCRIPTION\n\nOptional (only if provided)\n\nLOCATION\n\nCATEGORIES\n\nTIME FORMAT (CRITICAL - EUROPE/LONDON TIMEZONE)\n\nAll times are in Europe/London timezone. You MUST use the TZID parameter.\n\nFormat for DTSTART and DTEND:\nDTSTART;TZID=Europe/London:YYYYMMDDTHHMMSS\nDTEND;TZID=Europe/London:YYYYMMDDTHHMMSS\n\nFormat for DTSTAMP (use UTC with Z suffix):\nDTSTAMP:YYYYMMDDTHHMMSSZ\n\nIf seconds unknown, use 00 for seconds.\n\nIf an event crosses midnight, DTEND must be on the next date.\n\nEXAMPLE VEVENT:\nBEGIN:VEVENT\nUID:20260115-1100-1200-team-meeting@rota2cal\nDTSTAMP:20260115T105600Z\nDTSTART;TZID=Europe/London:20260115T110000\nDTEND;TZID=Europe/London:20260115T120000\nSUMMARY:Team meeting\nDESCRIPTION:Added via SimpleX\nEND:VEVENT\n\nDo NOT use floating time (bare YYYYMMDDTHHMMSS without TZID).\nDo NOT use UTC (Z suffix) for DTSTART or DTEND.\nALWAYS use TZID=Europe/London for DTSTART and DTEND.\n\nESCAPING (RFC 5545)\n\nNew lines inside DESCRIPTION → \\n\n\nCommas → \\,\n\nSemicolons → \\;\n\nBackslashes → \\\\\n\nLINE LENGTH (BEST EFFORT)\n\nKeep lines ≤ 75 characters where practical\n\nDo NOT wrap if it risks correctness\n\nIDEMPOTENT UID (IMPORTANT)\n\nUID must be stable across re-runs.\n\nPreferred (structured mode)\nUID:<event.row_id>@rota2cal\n\nFallback (manual inference)\n\nBuild UID from:\n\nevent_date (YYYYMMDD)\n\nstart_time (HHMM)\n\nend_time (HHMM)\n\nnormalized summary\n\nNormalization:\n\nlowercase\n\nspaces → hyphens\n\nremove all characters except a-z, 0-9, hyphen\n\nExample:\n\nUID:20260110-0800-2030-icu-day-shift@rota2cal\n\nDTSTAMP\n\nIf input contains now, use it (convert to UTC and add Z suffix)\n\nOtherwise use fixed placeholder:\n\n20260108T000000Z\n\nINPUT YOU WILL RECEIVE\n\nYou will receive either:\n\nA) Structured JSON (trusted)\n{\n  \"now\": \"YYYYMMDDTHHMMSS\",\n  \"default_location\": \"string optional\",\n  \"event\": {\n    \"row_id\": \"string optional\",\n    \"date\": \"YYYY-MM-DD\",\n    \"start\": \"HH:MM optional\",\n    \"end\": \"HH:MM optional\",\n    \"type\": \"day|night|oncall|am_list|pm_list|elective_day|other optional\",\n    \"summary\": \"string optional\",\n    \"description\": \"string optional\",\n    \"location\": \"string optional\",\n    \"categories\": [\"string\", \"...\"] optional\n  }\n}\n\nB) Free-text request\n\nNatural language describing shifts or calendar events\n\nThe input will include the current local time in Europe/London timezone in the format:\n[Current local time: HH:MM, Date: YYYY-MM-DD]\n\nUse this to interpret relative times like \"now\", \"in 2 hours\", \"this afternoon\", etc.\n\nIf JSON is present, trust it fully.\nIf only text is present, infer events.\n\nTIME INFERENCE RULES (MANUAL MODE)\n\n1. If explicit START and END times given (e.g. \"2pm-4pm\", \"14:00-16:00\"), use them exactly.\n\n2. If only START time given with NO end time (e.g. \"at 3pm\", \"landing at 7:20\"):\n   - Create a ZERO-DURATION event (point in time)\n   - DTEND = DTSTART (same time)\n   - This is correct for arrivals, deadlines, reminders, etc.\n\n3. If rota type detected, use these defaults:\n   - day → 08:00 → 20:30\n   - night → 20:00 → 08:30 next day\n   - oncall → 08:00 → 08:00 next day\n   - am_list → 08:00 → 13:00\n   - pm_list → 13:00 → 17:30\n   - elective_day → 08:00 → 17:30\n\n4. GENERIC EVENT DEFAULT (no time at all):\n   If NO time is specified AND event type is not a known rota type:\n   - Default to a 1-hour event\n   - DTSTART = 09:00 on the specified date\n   - DTEND = 10:00 on the specified date\n   - This ensures events like \"add meeting on Friday\" or \"add lunch on 25th\" always get created\n\n5. All-day events:\n   If user explicitly says \"all day\" or \"whole day\":\n   - Use VALUE=DATE format\n   - DTSTART;VALUE=DATE:YYYYMMDD\n   - DTEND;VALUE=DATE:YYYYMMDD (next day)\n\nDURATION EXAMPLES:\n- \"meeting 2pm-4pm\" → DTSTART 14:00, DTEND 16:00 (2 hours)\n- \"Popey landing at 7:20\" → DTSTART 07:20, DTEND 07:20 (zero duration)\n- \"call at 3pm\" → DTSTART 15:00, DTEND 15:00 (zero duration)\n- \"lunch tomorrow\" → DTSTART 09:00, DTEND 10:00 (default 1 hour, no time given)\n- \"day shift\" → DTSTART 08:00, DTEND 20:30 (rota default)\n\nSUMMARY RULES\n\nPrefer explicit summary from user input\n\nElse map type to:\n\nday → Day shift\n\nnight → Night shift\n\noncall → Second on-call\n\nam_list → AM list\n\npm_list → PM list\n\nelective_day → Elective day\n\nFor generic events, use the text the user provided (e.g. \"multiple\", \"meeting\", \"lunch\")\n\nAppend specialty/location if detectable (e.g. \"Day shift (ICU)\")\n\nDESCRIPTION RULES\n\nInclude source context if available (e.g. spreadsheet, row ID)\n\nKeep concise\n\nUse \\n for multi-line content\n\nDefault: \"Added via SimpleX\"\n\nDUPLICATES\n\nIf two inferred events share identical date + start + end + summary:\n\nOutput only one\n\nFAIL-SAFE\n\nONLY output an empty calendar if the input contains NO discernible event request at all (e.g. just \"hello\" or gibberish).\n\nIf ANY event details can be extracted (date, summary, anything), ALWAYS create a VEVENT with sensible defaults.\n\nBEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//n8n AI//Rota2Cal//EN\nCALSCALE:GREGORIAN\nEND:VCALENDAR"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        32,
+        -208
+      ],
+      "id": "0c48834e-af56-4e2b-8f73-f893ce4c65de",
+      "name": "AI Agent_ICS_generator"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -192,
+        -208
+      ],
+      "id": "711b4a50-2964-4ef8-b237-aac149d155f0",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split_ICS_Events - Code node (Run Once for All Items)\nconst items = $input.all();\nconst results = [];\n\n// Helper to format date nicely\nfunction formatDate(dateStr) {\n  const year = dateStr.substr(0, 4);\n  const month = parseInt(dateStr.substr(4, 2), 10);\n  const day = parseInt(dateStr.substr(6, 2), 10);\n  \n  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', \n                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];\n  \n  const ordinal = (d) => {\n    if (d > 3 && d < 21) return d + 'th';\n    switch (d % 10) {\n      case 1: return d + 'st';\n      case 2: return d + 'nd';\n      case 3: return d + 'rd';\n      default: return d + 'th';\n    }\n  };\n  \n  return `${ordinal(day)} ${months[month - 1]}`;\n}\n\n// Helper to extract time from datetime string\nfunction extractTime(dt) {\n  if (dt && dt.includes('T')) {\n    const hour = dt.substr(9, 2);\n    const minute = dt.substr(11, 2);\n    return `${hour}:${minute}`;\n  }\n  return '';\n}\n\nfor (const item of items) {\n  const icsContent = item.json.output || item.json.text || '';\n  const contactId = item.json.contactId || $('When Executed by Another Workflow').item.json.contactId;\n  \n  const veventMatches = icsContent.match(/BEGIN:VEVENT[\\s\\S]*?END:VEVENT/g) || [];\n  \n  for (const vevent of veventMatches) {\n    // Extract UID\n    const uidMatch = vevent.match(/UID:(.+)/);\n    const uid = uidMatch ? uidMatch[1].trim() : `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;\n    \n    // Extract SUMMARY\n    const summaryMatch = vevent.match(/SUMMARY:(.+)/);\n    const summary = summaryMatch ? summaryMatch[1].trim() : 'Untitled Event';\n    \n    // Extract DTSTART\n    const dtstartMatch = vevent.match(/DTSTART[^:]*:(\\d{8}T?\\d{0,6})/);\n    let startTime = '';\n    let dateStr = '';\n    \n    if (dtstartMatch) {\n      const dt = dtstartMatch[1];\n      dateStr = formatDate(dt);\n      startTime = extractTime(dt);\n    }\n    \n    // Extract DTEND\n    const dtendMatch = vevent.match(/DTEND[^:]*:(\\d{8}T?\\d{0,6})/);\n    let endTime = '';\n    \n    if (dtendMatch) {\n      endTime = extractTime(dtendMatch[1]);\n    }\n    \n    // Rebuild complete ICS for this single event\n    const header = icsContent.match(/BEGIN:VCALENDAR[\\s\\S]*?(?=BEGIN:VEVENT)/)?.[0] || \n      'BEGIN:VCALENDAR\\nVERSION:2.0\\nPRODID:-//Second Brain//EN\\n';\n    const singleIcs = header + vevent + '\\nEND:VCALENDAR';\n    \n    results.push({\n      json: {\n        uid,\n        output: singleIcs,\n        summary,\n        startTime,\n        endTime,\n        date: dateStr,\n        contactId\n      }\n    });\n  }\n}\n\nif (results.length === 0) {\n  return items;\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        -208
+      ],
+      "id": "1b29facd-74f9-41d6-8690-4812d3e634ec",
+      "name": "Split_ICS_Events"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate_Results - Code node (Run Once for All Items)\nconst calDavResults = $input.all();\nconst splitEvents = $('Split_ICS_Events').all();\n\nif (calDavResults.length === 0) {\n  return [{ json: { message: '❌ No events were created', contactId: null } }];\n}\n\nconst contactId = splitEvents[0]?.json.contactId;\n\nconst allSuccessful = calDavResults.every(item => {\n  const statusCode = item.json.statusCode || 201;\n  return statusCode >= 200 && statusCode < 300;\n});\n\n// Build event descriptions with date and time range\nconst eventSummaries = splitEvents.map(item => {\n  const summary = item.json.summary || 'event';\n  const startTime = item.json.startTime;\n  const endTime = item.json.endTime;\n  const date = item.json.date;\n  \n  let timeRange = '';\n  if (startTime && endTime) {\n    timeRange = `${startTime} - ${endTime}`;\n  } else if (startTime) {\n    timeRange = startTime;\n  }\n  \n  let details = summary;\n  if (timeRange && date) {\n    details = `${summary} (${timeRange}) on ${date}`;\n  } else if (timeRange) {\n    details = `${summary} (${timeRange})`;\n  } else if (date) {\n    details = `${summary} on ${date}`;\n  }\n  return details;\n});\n\nlet message;\nif (allSuccessful) {\n  if (eventSummaries.length === 1) {\n    message = `✅ Event added: ${eventSummaries[0]}`;\n  } else {\n    message = `✅ Events added:\\n• ${eventSummaries.join('\\n• ')}`;\n  }\n} else {\n  message = `⚠️ Some events may not have been created. Please check your calendar.`;\n}\n\nreturn [{\n  json: {\n    contactId,\n    message,\n    eventCount: splitEvents.length,\n    success: allSuccessful\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        -208
+      ],
+      "id": "0f402c5e-469f-4048-955b-7b9ba1558a18",
+      "name": "Aggregate_Results"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "today": "2026-01-15",
+          "nowStamp": "20260115T062740",
+          "request": "add event titled “multiple” tomorrow at 5pm and the day after tomorrow at 7pm and on the 24th Jan at 11pm.",
+          "contactId": "6"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent_ICS_generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent_ICS_generator": {
+      "main": [
+        [
+          {
+            "node": "Split_ICS_Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent_ICS_generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split_ICS_Events": {
+      "main": [
+        [
+          {
+            "node": "CalDAV_PUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CalDAV_PUT": {
+      "main": [
+        [
+          {
+            "node": "Aggregate_Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "5b1096b3-b950-4df4-805d-aaef9fd75e37",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6dd52e1127a8323eea11f39646bff42e584259ad6d872e077809aa55e4ff2415"
+  },
+  "id": "a6OVZcblBcUy66iu",
+  "tags": []
+}
