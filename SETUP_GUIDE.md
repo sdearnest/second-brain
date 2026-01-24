@@ -213,34 +213,66 @@ docker compose restart n8n
 
 ## Importing Workflows
 
-### If You Have Existing Workflow JSON Files
+### Setting Up Workflow Folders
+
+Organize your workflows in n8n with this folder structure:
+
+```
+second brain/
+├── SimpleX_SecondBrain_Router    # Main router workflow
+├── obsidian/
+│   └── (obsidian-related workflows)
+└── calendar/
+    └── (calendar-related workflows)
+```
+
+**To create folders in n8n:**
+1. Open n8n: http://localhost:5678
+2. In the left sidebar, click the **+** next to "Workflows"
+3. Select "Create folder"
+4. Create `second brain`, then inside it create `obsidian` and `calendar`
+
+### Importing Workflow Files
 
 1. **Open n8n:** http://localhost:5678
 
-2. **Import each workflow:**
+2. **Start from scratch:**
    - Click "Add workflow" (or the + button)
+
+3. **Import the workflow:**
+   - Click the **three dots menu** (⋮) in the top right corner
    - Click "Import from file"
    - Select your `.json` file
    - Click "Save"
 
-3. **Recreate credentials:**
-   
-   Credentials are NOT included in workflow exports. You need to recreate:
-   
-   - **OpenAI API Key:**
-     - Settings → Credentials → Add credential
-     - Select "OpenAI API"
-     - Paste your API key
-   
-   - **Other APIs** as needed
+4. **Move to correct folder:**
+   - From the workflows list, drag the workflow to the appropriate folder:
+     - `SimpleX_SecondBrain_Router` → `second brain/`
+     - Obsidian workflows → `second brain/obsidian/`
+     - Calendar workflows → `second brain/calendar/`
 
-4. **Update credential references:**
-   - Open each workflow
-   - Find nodes with missing credentials (shown with ⚠️)
-   - Select the correct credential from dropdown
+5. **Repeat for all workflows**
 
-5. **Activate workflows:**
-   - Toggle the "Active" switch for each workflow
+### Recreating Credentials
+
+Credentials are NOT included in workflow exports. You need to recreate:
+
+- **OpenAI API Key:**
+  - Settings → Credentials → Add credential
+  - Select "OpenAI API"
+  - Paste your API key
+
+- **Other APIs** as needed
+
+### Updating Credential References
+
+- Open each workflow
+- Find nodes with missing credentials (shown with ⚠️)
+- Select the correct credential from dropdown
+
+### Activating Workflows
+
+- Toggle the "Active" switch for each workflow
 
 ### If Starting Fresh
 
