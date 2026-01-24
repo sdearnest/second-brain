@@ -2,22 +2,51 @@
 
 A privacy-focused personal AI assistant that manages calendar, notes, and tasks through natural language via SimpleX Chat. All processing occurs on self-hosted infrastructure without cloud dependencies.
 
+## Credits & Inspiration
+
+This project is inspired by [Nate's Second Brain system](https://natesnewsletter.substack.com/p/grab-the-system-that-closes-open), which uses Zapier, Notion, and Slack to create a powerful thought capture system.
+
+**Nate's Original Design:**
+- 3 Zapier automations, 5 Notion databases, 1 Slack channel
+- The Core Loop:
+  1. Capture a thought in Slack (5 seconds)
+  2. Zapier sends it to Claude/ChatGPT for classification
+  3. AI returns structured JSON with category, fields, and confidence
+  4. Zapier routes it to the correct Notion database
+  5. Zapier replies in Slack confirming what it did
+  6. Daily/weekly digests surface what matters
+
+**This project adapts that concept for privacy-conscious self-hosters:**
+
+| Nate's Stack | This Project | Benefit |
+|--------------|--------------|---------|
+| Slack | SimpleX Chat | End-to-end encrypted, no metadata |
+| Zapier | n8n | Self-hosted, no cloud dependency |
+| Notion | Obsidian API | Local markdown files, full ownership |
+| Cloud AI | Your choice | Use local LLMs or cloud APIs |
+
+Same powerful workflow, but everything runs on your own hardware.
+
+---
+
 ## Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/second-brain.git
+git clone https://github.com/drgoodnight/second-brain.git
 cd second-brain
+
+# Make scripts executable
+chmod +x scripts/*.sh
+chmod +x simplex/start-simplex.sh
 
 # Run setup
 ./scripts/setup.sh
-
-# Edit .env with your settings
-nano .env
-
-# Start services
-docker compose up -d
 ```
+
+See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed installation instructions.
+
+---
 
 ## Architecture
 
@@ -44,6 +73,8 @@ SimpleX Chat ──────────► │  n8n Hub                     
 | Obsidian API | 8765 | Notes management (5 databases) |
 | SimpleX Chat | 5225 | Encrypted messaging interface |
 | SimpleX Bridge | - | Connects SimpleX ↔ n8n |
+
+---
 
 ## Features
 
@@ -81,6 +112,17 @@ User: "2"
 System: "✅ Deleted: photography NFT project from ideas"
 ```
 
+### Fix Misclassified Entries
+
+When the AI isn't sure where something belongs, it goes to "Needs Review":
+
+```
+User: "fix: people"   → Moves last review item to People database
+User: "fix: project"  → Moves last review item to Projects database
+```
+
+---
+
 ## Directory Structure
 
 ```
@@ -89,6 +131,7 @@ second-brain/
 ├── .env.example            # Template (committed)
 ├── .env                    # Secrets (gitignored)
 ├── README.md
+├── SETUP_GUIDE.md          # Detailed setup instructions
 │
 ├── n8n-python/             # Custom n8n image with Python
 │   └── Dockerfile
@@ -108,6 +151,9 @@ second-brain/
 │   ├── backup.sh           # Backup script
 │   └── restore.sh          # Restore script
 │
+├── n8n/
+│   └── workflows/          # Exported n8n workflow JSONs
+│
 └── data/                   # All persistent data (gitignored)
     ├── n8n/
     ├── nextcloud/
@@ -116,6 +162,8 @@ second-brain/
     ├── simplex/
     └── simplex-bridge/
 ```
+
+---
 
 ## Configuration
 
@@ -133,6 +181,8 @@ NEXTCLOUD_PASSWORD=your-app-password  # For CalDAV access
 TZ=Europe/London
 ```
 
+---
+
 ## Backup & Restore
 
 ```bash
@@ -145,6 +195,8 @@ TZ=Europe/London
 # Automated backups (add to crontab)
 0 2 * * * /path/to/second-brain/scripts/backup.sh --cron
 ```
+
+---
 
 ## Remote Access
 
@@ -160,54 +212,41 @@ TZ=Europe/London
 For external webhook access without opening ports:
 
 ```bash
-# Install cloudflared
-# Configure tunnel to expose n8n webhooks
 cloudflared tunnel --url http://localhost:5678
 ```
 
-## API Reference (Obsidian)
+---
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/db/people` | GET/POST | List/create people |
-| `/db/projects` | GET/POST | List/create projects |
-| `/db/ideas` | GET/POST | List/create ideas |
-| `/db/admin` | GET/POST | List/create tasks |
-| `/search?query=...` | POST | Search all databases |
-| `/pending_delete` | GET/POST/DELETE | Delete confirmation flow |
-| `/fix?category=...` | POST | Fix misclassified entries |
+## Documentation
+
+- [Setup Guide](SETUP_GUIDE.md) - Complete installation instructions
+- [Nate's Original Article](https://natesnewsletter.substack.com/p/grab-the-system-that-closes-open) - The inspiration for this project
+
+---
 
 ## Troubleshooting
 
 ### Services won't start
 
 ```bash
-# Check logs
 docker compose logs -f
-
-# Check specific service
 docker compose logs -f n8n
 ```
 
 ### SimpleX not connecting
 
 ```bash
-# Check bridge logs
 docker compose logs -f simplex-bridge
-
-# Check SimpleX CLI
 docker compose logs -f simplex-chat-cli
 ```
 
 ### Permission errors
 
 ```bash
-# Fix permissions (run as root)
-sudo chown -R 1000:1000 data/n8n
-sudo chown -R 33:33 data/nextcloud
-sudo chown -R 1001:1001 data/simplex
+sudo chown -R $USER:$USER data/
 ```
+
+---
 
 ## Contributing
 
@@ -216,6 +255,18 @@ sudo chown -R 1001:1001 data/simplex
 3. Make your changes
 4. Submit a pull request
 
+---
+
 ## License
 
 MIT License - See LICENSE file for details.
+
+---
+
+## Acknowledgments
+
+- [Nate](https://natesnewsletter.substack.com/) for the original Second Brain concept and workflow design
+- [n8n](https://n8n.io/) for the amazing automation platform
+- [SimpleX Chat](https://simplex.chat/) for truly private messaging
+- [Nextcloud](https://nextcloud.com/) for self-hosted calendar
+- [Obsidian](https://obsidian.md/) for the knowledge management philosophy
