@@ -7,19 +7,24 @@ The SimpleX Bridge connects SimpleX Chat to n8n, enabling your Second Brain to r
 ## Overview
 
 ```
-┌─────────────────┐     ┌─────────────────────┐     ┌─────────────┐
-│  SimpleX App    │     │  simplex-chat-cli   │     │    n8n      │
-│  (Your Phone)   │◄───►│  (WebSocket :5225)  │◄───►│  (Webhook)  │
-└─────────────────┘     └─────────────────────┘     └─────────────┘
-                                  ▲
-                                  │ polls /tail
-                                  │ every 2 seconds
-                                  ▼
-                        ┌─────────────────────┐
-                        │   simplex-bridge    │
-                        │   (Python script)   │
-                        └─────────────────────┘
+┌─────────────────┐     ┌─────────────────────────────────────┐     ┌─────────────┐
+│  SimpleX App    │     │        simplex-chat-cli             │     │    n8n      │
+│  (Your Phone)   │◄───►│  ┌───────┐    ┌───────────────┐    │◄───►│  (Webhook)  │
+└─────────────────┘     │  │ socat │───►│ simplex-chat  │    │     └─────────────┘
+                        │  │:5225  │    │ :5226         │    │
+                        │  └───────┘    └───────────────┘    │
+                        └─────────────────────────────────────┘
+                                          ▲
+                                          │ polls /tail
+                                          │ every 2 seconds
+                                          ▼
+                                ┌─────────────────────┐
+                                │   simplex-bridge    │
+                                │   (Python script)   │
+                                └─────────────────────┘
 ```
+
+**Important:** SimpleX Chat CLI only binds to `127.0.0.1` (localhost) by default. To allow other Docker containers to connect, we use `socat` to proxy from `0.0.0.0:5225` to `127.0.0.1:5226`.
 
 The bridge is a Python script that:
 1. **Polls** the SimpleX WebSocket API every 2 seconds
@@ -32,7 +37,24 @@ The bridge is a Python script that:
 
 ## How It Works
 
-### 1. Polling Loop
+### 1. Socat Proxy (Container Networking Fix)
+
+SimpleX CLI only listens on localhost, which means other containers can't reach it. The `start-simplex.sh` script solves this:
+
+```bash
+# SimpleX listens on internal port (localhost only)
+INTERNAL_PORT=5226
+
+# Socat forwards from all interfaces to localhost
+socat TCP-LISTEN:5225,fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:5226 &
+
+# Start SimpleX on the internal port
+simplex-chat -p 5226 ...
+```
+
+This allows the bridge container to connect to `simplex-chat-cli:5225`.
+
+### 2. Polling Loop
 
 ```python
 while running:
@@ -48,7 +70,7 @@ while running:
     time.sleep(2)
 ```
 
-### 2. Deduplication
+### 3. Deduplication
 
 Each contact has a "last seen" `itemId` stored in a JSON state file:
 
@@ -64,7 +86,7 @@ Messages with `itemId <= last_seen` are skipped. This prevents:
 - Re-sending messages during reconnection
 - Duplicate webhooks
 
-### 3. Message Extraction
+### 4. Message Extraction
 
 Only **incoming direct messages** are forwarded:
 
@@ -78,7 +100,7 @@ if chatInfo.type == "direct" and chatDir.type == "directRcv" and text:
     forward_to_n8n()
 ```
 
-### 4. Webhook Payload
+### 5. Webhook Payload
 
 Messages are sent to n8n as JSON:
 
@@ -203,6 +225,78 @@ Errors:
 
 ---
 
+## Troubleshooting
+
+### "Connection refused" errors
+
+**Symptom:** Bridge shows `ConnectionRefusedError(111, 'Connection refused')`
+
+**Cause:** SimpleX only binds to localhost by default.
+
+**Solution:** Ensure `start-simplex.sh` includes the socat proxy:
+```bash
+socat TCP-LISTEN:5225,fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:5226 &
+```
+
+**Verify fix:**
+```bash
+# Check socat is running
+docker exec simplex-chat-cli ps aux | grep socat
+
+# Check ports - should show 0.0.0.0:5225 (not 127.0.0.1)
+docker exec simplex-chat-cli cat /proc/net/tcp | head -5
+
+# Test connectivity from bridge
+docker exec simplex-bridge python3 -c "
+import websocket
+ws = websocket.create_connection('ws://simplex-chat-cli:5225', timeout=5)
+print('SUCCESS')
+ws.close()
+"
+```
+
+### Bridge started before SimpleX was ready
+
+**Symptom:** Health check fails at startup, then connection errors
+
+**Solution:** Restart the bridge after SimpleX is fully running:
+```bash
+docker compose restart simplex-bridge
+```
+
+### Messages not being forwarded
+
+**Symptom:** Messages received on phone but not showing in bridge logs
+
+**Check:**
+1. Is the message from a direct chat (not a group)?
+2. Is it an incoming message (not one you sent)?
+3. Check the state file - message ID might already be marked as seen
+
+**Reset state:**
+```bash
+rm data/simplex-bridge/simplex_last_seen.json
+docker compose restart simplex-bridge
+```
+
+### Containers not on same network
+
+**Symptom:** DNS resolution fails or connection refused
+
+**Check:**
+```bash
+# Verify both containers are on the same network
+docker network inspect second-brain-net --format='{{range .Containers}}{{.Name}} {{end}}'
+
+# Test DNS resolution from bridge
+docker exec simplex-bridge python3 -c "
+import socket
+print(socket.gethostbyname('simplex-chat-cli'))
+"
+```
+
+---
+
 ## Debugging
 
 Enable verbose logging:
@@ -216,6 +310,20 @@ Or check logs:
 
 ```bash
 docker compose logs -f simplex-bridge
+```
+
+Test WebSocket manually:
+
+```bash
+docker exec simplex-bridge python3 -c "
+import websocket
+import json
+
+ws = websocket.create_connection('ws://simplex-chat-cli:5225', timeout=10)
+ws.send(json.dumps({'corrId': 'test', 'cmd': '/tail'}))
+print(ws.recv())
+ws.close()
+"
 ```
 
 ---
@@ -243,3 +351,4 @@ docker compose restart simplex-bridge
 - No authentication on WebSocket (internal only)
 - Webhook URL should be internal Docker network address
 - State file contains only message IDs, not message content
+- Socat only listens on the Docker network, not the host
