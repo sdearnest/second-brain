@@ -23,15 +23,35 @@ Categories:
 - "confirm": User confirming a previous action (yes, confirm, do it, go ahead)
 - "cancel": User cancelling a previous action (no, nevermind, stop) - NOT canceling calendar events
 - "fix": User is fixing a previous classification (fix: people, fix: project, etc.)
+- "numeric_selection": User replying with JUST a number (1, 2, 3, etc.) to select from a list
 
 IMPORTANT: If the message mentions dates, times, or event-related words (meeting, appointment, shift, etc.) AND a delete/cancel/remove word, it's a CALENDAR operation, not "delete" or "cancel".
 
-For "calendar" category, extract:
-- content: The full message for the calendar system to process
+---
 
 For "notes" category, extract:
-- target: The person/topic the note is about (if mentioned)
-- content: ONLY the factual information, stripped of command words ("add to", "note that", "remember") and filler pronouns ("she has", "he is", "they are")
+- target: The NAME of the person or thing (NOT the database name!)
+- content: The information about them, OR the full message if no separate info
+
+CRITICAL - DATABASE WORDS ARE NOT TARGETS:
+The words "people", "persons", "ideas", "projects", "admin", "tasks" are DATABASE names, NOT targets.
+
+Pattern: "add [NAME] to [DATABASE]"
+- target = [NAME] (everything BEFORE "to people/persons/ideas/projects/admin")
+- content = the full original message
+
+Pattern: "add to [NAME] [INFO]"
+- target = [NAME]
+- content = [INFO]
+
+Pattern: "[NAME] mentioned/said/told [INFO]"
+- target = [NAME]
+- content = [INFO]
+
+---
+
+For "calendar" category, extract:
+- content: The full message for the calendar system to process
 
 For "search" category, extract:
 - query: What to search for (or database name if listing)
@@ -43,12 +63,44 @@ For "fix" category, extract:
 - category: The target category (people, projects, ideas, admin)
 - name: Optional override name for the record
 
-Examples:
+---
+
+EXAMPLES - NOTES (pay close attention!):
+
+Input: "add test person to people"
+Output: {"intent": "notes", "target": "test person", "content": "add test person to people"}
+WRONG: {"intent": "notes", "target": "people", ...} ← "people" is a database, not a person!
+
+Input: "add test person to persons"
+Output: {"intent": "notes", "target": "test person", "content": "add test person to persons"}
+
+Input: "add John Smith to people"
+Output: {"intent": "notes", "target": "John Smith", "content": "add John Smith to people"}
+
+Input: "add Jane Doe to people she works at Google"
+Output: {"intent": "notes", "target": "Jane Doe", "content": "works at Google"}
+
 Input: "add to Nikki she has good eye for photography"
 Output: {"intent": "notes", "target": "Nikki", "content": "good eye for photography"}
 
 Input: "John mentioned he likes coffee"
 Output: {"intent": "notes", "target": "John", "content": "likes coffee"}
+
+Input: "idea: AI prediction engine"
+Output: {"intent": "notes", "target": "AI prediction engine", "content": "idea: AI prediction engine"}
+
+Input: "new project Second Brain mobile app"
+Output: {"intent": "notes", "target": "Second Brain mobile app", "content": "new project Second Brain mobile app"}
+
+Input: "task: renew passport by March"
+Output: {"intent": "notes", "target": "renew passport by March", "content": "task: renew passport by March"}
+
+Input: "remember Bob works at Google"
+Output: {"intent": "notes", "target": "Bob", "content": "works at Google"}
+
+---
+
+EXAMPLES - SEARCH:
 
 Input: "what do I know about John?"
 Output: {"intent": "search", "query": "John"}
@@ -65,6 +117,16 @@ Output: {"intent": "search", "query": "list all"}
 Input: "show tasks"
 Output: {"intent": "search", "query": "list admin"}
 
+Input: "show me Xander"
+Output: {"intent": "search", "query": "Xander"}
+
+Input: "find notes about coffee"
+Output: {"intent": "search", "query": "coffee"}
+
+---
+
+EXAMPLES - CALENDAR:
+
 Input: "meeting at 3pm tomorrow"
 Output: {"intent": "calendar", "content": "meeting at 3pm tomorrow"}
 
@@ -77,8 +139,9 @@ Output: {"intent": "calendar", "content": "cancel my 3pm meeting tomorrow"}
 Input: "delete the event on Saturday"
 Output: {"intent": "calendar", "content": "delete the event on Saturday"}
 
-Input: "remove the lunch appointment"
-Output: {"intent": "calendar", "content": "remove the lunch appointment"}
+---
+
+EXAMPLES - OTHER:
 
 Input: "delete the entry about Nikki likes grapes"
 Output: {"intent": "delete", "query": "Nikki likes grapes"}
@@ -104,22 +167,18 @@ Output: {"intent": "fix", "category": "people"}
 Input: "fix: project"
 Output: {"intent": "fix", "category": "projects"}
 
-Input: "fix: projects"
-Output: {"intent": "fix", "category": "projects"}
-
-Input: "fix: idea"
-Output: {"intent": "fix", "category": "ideas"}
-
-Input: "fix: ideas"
-Output: {"intent": "fix", "category": "ideas"}
-
-Input: "fix: admin"
-Output: {"intent": "fix", "category": "admin"}
-
-Input: "fix: task"
-Output: {"intent": "fix", "category": "admin"}
-
 Input: "fix people call it Bob Smith"
 Output: {"intent": "fix", "category": "people", "name": "Bob Smith"}
 
-Respond with ONLY valid JSON.
+Input: "1"
+Output: {"intent": "numeric_selection", "selection": 1}
+
+Input: "2"
+Output: {"intent": "numeric_selection", "selection": 2}
+
+Input: "3"
+Output: {"intent": "numeric_selection", "selection": 3}
+
+---
+
+Respond with ONLY valid JSON. No markdown, no explanation.
