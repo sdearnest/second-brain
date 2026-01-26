@@ -189,6 +189,25 @@ services:
       timeout: 10s
       retries: 3
 
+
+  # ============================================
+  # CADDY - HTTPS Reverse Proxy for iOS CalDAV
+  # ============================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy/certs:/certs:ro
+      - ./data/caddy/data:/data
+      - ./data/caddy/config:/config
+    networks:
+      - second-brain-net
+
+
 # ============================================
 # NETWORK
 # ============================================

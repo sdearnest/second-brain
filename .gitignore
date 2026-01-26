@@ -29,6 +29,7 @@ __pycache__/
 dist/
 build/
 *.log
+caddy/Caddyfile
 
 # ============================================
 # DOCKER
@@ -52,3 +53,4 @@ backups/
 tmp/
 temp/
 *.tmp
+

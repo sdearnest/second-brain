@@ -15,7 +15,7 @@ DATABASES:
 
 2. projects - Multi-step goals with clear outcomes
    - Ongoing work, milestones, initiatives
-   - "Second brain: add search feature", "Kitchen renovation waiting on contractor"
+   - "Second brain: add search feature", "Home server: install Proxmox"
 
 3. ideas - Standalone insights or creative thoughts
    - New concepts, brainstorms, interesting thoughts
@@ -26,6 +26,16 @@ DATABASES:
    - "Pay electricity by Friday", "Schedule dentist", "Buy groceries"
 
 5. needs_review - Confidence below 0.6 or genuinely ambiguous
+
+APPENDING TO EXISTING RECORDS:
+- Phrases like "add to [topic]:", "update [topic]:", "append to [topic]:" mean append to existing
+- Match the topic to an existing note name (fuzzy match is OK)
+- Examples:
+  - "add to AI research: check out Claude's new features" → name: "AI Research", one_liner: "check out Claude's new features"
+  - "add to local LLM: try Ollama with Gemma 3" → name: "Local LLM Research", one_liner: "try Ollama with Gemma 3"
+  - "update second brain: added calendar integration" → name: "Second Brain", notes: "added calendar integration"
+- Use a descriptive expanded name that matches existing notes
+- Put the new content in one_liner (for ideas) or notes (for projects/people)
 
 TAGS (include 2-5):
 - Lowercase, single words or hyphenated
@@ -42,7 +52,7 @@ OUTPUT JSON:
   "follow_ups": "Things to remember (people only)",
   "status": "Active|Waiting|Blocked|Someday (projects only)",
   "next_action": "Next step (projects only)",
-  "one_liner": "Core insight (ideas only)",
+  "one_liner": "Core insight or new content to append (ideas only)",
   "due_date": "YYYY-MM-DD or null (admin only)",
   "notes": "Additional details",
   "tags": ["tag1", "tag2"]
