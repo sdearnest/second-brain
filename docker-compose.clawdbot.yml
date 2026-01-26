@@ -1,0 +1,53 @@
+# Clawdbot integration for Second Brain
+# Built from source: https://github.com/clawdbot/clawdbot
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.ollama.yml -f docker-compose.clawdbot.yml up -d
+
+services:
+  clawdbot-gateway:
+    image: clawdbot:local
+    container_name: clawdbot-gateway
+    restart: unless-stopped
+    environment:
+      - HOME=/home/node
+      - NODE_ENV=production
+      - CLAWDBOT_CONFIG_PATH=/config/clawdbot.json
+      - CLAWDBOT_STATE_DIR=/state
+      - CLAWDBOT_WORKSPACE_DIR=/workspace
+      - CLAWDBOT_GATEWAY_TOKEN=${CLAWDBOT_GATEWAY_TOKEN:?Required}
+      - CLAWDBOT_HOOKS_TOKEN=${CLAWDBOT_HOOKS_TOKEN}
+      - CLAWDBOT_DISABLE_BONJOUR=1
+      - OLLAMA_HOST=ollama
+      - OLLAMA_PORT=11434
+      - TZ=${TZ:-Europe/London}
+    volumes:
+      - ./data/clawdbot/config:/config:ro
+      - ./data/clawdbot/state:/state
+      - ./data/clawdbot/workspace:/workspace
+      - ./data/vault:/vault:ro
+    networks:
+      - second-brain-net
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:18789/__clawdbot__/canvas/ | grep -q Clawdbot"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command:
+      [
+        "node",
+        "dist/index.js",
+        "gateway",
+        "--bind",
+        "lan",
+        "--port",
+        "18789"
+      ]
+
+networks:
+  second-brain-net:
+    name: second-brain-net
+    driver: bridge
