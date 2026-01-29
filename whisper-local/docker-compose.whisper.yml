@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  whisper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whisper-local
+    restart: unless-stopped
+    
+    ports:
+      - "8766:8000"  # Expose on host
+    
+    environment:
+      # Model size: tiny, base, small, medium, large-v3
+      # tiny:   39M params, ~1GB VRAM, fastest
+      # base:   74M params, ~1GB VRAM, good balance
+      # small:  244M params, ~2GB VRAM, better accuracy
+      # medium: 769M params, ~5GB VRAM, high accuracy
+      # large-v3: 1550M params, ~10GB VRAM, best accuracy
+      WHISPER_MODEL: base
+      
+      # Device: cuda (GPU) or cpu
+      WHISPER_DEVICE: cuda
+      
+      # Compute type for GPU: float16 (fast), int8_float16 (faster, slight quality loss)
+      WHISPER_COMPUTE_TYPE: float16
+      
+      # Model storage (persisted)
+      WHISPER_MODEL_DIR: /app/models
+    
+    volumes:
+      # Persist downloaded models
+      - ./data/whisper-models:/app/models
+    
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  default:
+    name: second-brain
+    external: true

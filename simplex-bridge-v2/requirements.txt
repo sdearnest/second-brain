@@ -1,0 +1,7 @@
+# SimpleX Bridge v2 Dependencies
+
+# WebSocket client
+websocket-client==1.7.0
+
+# Standard library only, no additional deps needed!
+# All other functionality uses built-in Python modules
