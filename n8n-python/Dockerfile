@@ -12,13 +12,23 @@ FROM docker.n8n.io/n8nio/n8n:latest
 USER root
 
 # Install Python and common dependencies
-RUN apk add --no-cache \
+#RUN apk add --no-cache \
+#    python3 \
+#    py3-pip \
+#    python3-dev \
+#    gcc \
+#    musl-dev \
+#    libffi-dev
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
     python3 \
-    py3-pip \
-    python3-dev \
-    gcc \
-    musl-dev \
-    libffi-dev
+    python3-pip \
+    ca-certificates \
+    netcat-openbsd \
+    curl \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 # Create symlinks for python commands
 RUN ln -sf /usr/bin/python3 /usr/bin/python
