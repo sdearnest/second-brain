@@ -49,9 +49,10 @@ mkdir -p data/vault/Ideas
 mkdir -p data/vault/Admin
 mkdir -p "data/vault/Inbox Log"
 mkdir -p "data/vault/Daily Notes"
-mkdir -p data/simplex
+mkdir -p data/simplex/.simplex
 mkdir -p data/simplex-bridge
-
+chmod -R 777 ~/second-brain/data/simplex
+chmod -R 777 ~/second-brain/data/simplex/.simplex
 echo "✓ Data directories created"
 echo ""
 
